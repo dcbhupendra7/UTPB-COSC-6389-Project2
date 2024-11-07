@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, Spinbox
 from neural_network import Network, RandData, neuron_scale, axon_scale, training_data_size
 import threading
 
@@ -11,16 +11,43 @@ def train():
             return
 
         global learning_rate, num_hidden_layers, hidden_layer_width, num_inputs
+        is_valid = True
         try:
             learning_rate = float(learning_rate_spinbox.get())
+        except ValueError:
+            learning_rate_spinbox.configure(foreground="red")
+            is_valid = False
+
+        try:
             num_inputs = int(input_neurons_spinbox.get())
+        except ValueError:
+            input_neurons_spinbox.configure(foreground="red")
+            is_valid = False
+
+        try:
             num_hidden_layers = int(hidden_layers_spinbox.get())
+        except ValueError:
+            hidden_layers_spinbox.configure(foreground="red")
+            is_valid = False
+
+        try:
             hidden_layer_width = int(layer_width_spinbox.get())
         except ValueError:
-            messagebox.showerror("Error", "Please enter valid numeric values.")
+            layer_width_spinbox.configure(foreground="red")
+            is_valid = False
+
+        # If any input is invalid, do not proceed
+        if not is_valid:
             return
 
-        network = Network(activation=activation, num_hidden_layers=num_hidden_layers, hidden_layer_width=hidden_layer_width, learning_rate=learning_rate, num_inputs=num_inputs)
+        # If all inputs are valid, reset foreground color
+        learning_rate_spinbox.configure(foreground="black")
+        input_neurons_spinbox.configure(foreground="black")
+        hidden_layers_spinbox.configure(foreground="black")
+        layer_width_spinbox.configure(foreground="black")
+
+        network = Network(activation=activation, num_hidden_layers=num_hidden_layers,
+                          hidden_layer_width=hidden_layer_width, learning_rate=learning_rate, num_inputs=num_inputs)
         canvas.delete("all")  
         # Clear canvas before drawing
         update_canvas_size(network)
@@ -113,26 +140,27 @@ def train():
     activation_menu.grid(row=0, column=1, padx=10, pady=5)
 
     ctk.CTkLabel(root, text="Learning Rate:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-    learning_rate_spinbox = ctk.CTkEntry(root)
+    learning_rate_spinbox = Spinbox(root, from_=0.01, to=1.0, increment=0.01, bg="#f0f0f0", fg="black", highlightbackground="gray", highlightthickness=1)
+    learning_rate_spinbox.delete(0, "end")
     learning_rate_spinbox.insert(0, "0.1")
     learning_rate_spinbox.grid(row=1, column=1, padx=10, pady=5)
 
     ctk.CTkLabel(root, text="Number of Input Neurons:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
-    input_neurons_spinbox = ctk.CTkEntry(root)
-    input_neurons_spinbox.insert(0, "8")  
-    # Default number of input neurons
+    input_neurons_spinbox = Spinbox(root, from_=1, to=100, increment=1, bg="#f0f0f0", fg="black", highlightbackground="gray", highlightthickness=1)
+    input_neurons_spinbox.delete(0, "end")
+    input_neurons_spinbox.insert(0, "8")
     input_neurons_spinbox.grid(row=2, column=1, padx=10, pady=5)
 
     ctk.CTkLabel(root, text="Number of Hidden Layers:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
-    hidden_layers_spinbox = ctk.CTkEntry(root)
-    hidden_layers_spinbox.insert(0, "1")  
-    # Reduced default number of hidden layers to reduce lag 
+    hidden_layers_spinbox = Spinbox(root, from_=1, to=10, increment=1, bg="#f0f0f0", fg="black", highlightbackground="gray", highlightthickness=1)
+    hidden_layers_spinbox.delete(0, "end")
+    hidden_layers_spinbox.insert(0, "1")
     hidden_layers_spinbox.grid(row=3, column=1, padx=10, pady=5)
 
     ctk.CTkLabel(root, text="Neurons per Hidden Layer:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
-    layer_width_spinbox = ctk.CTkEntry(root)
-    layer_width_spinbox.insert(0, "4")  
-    # Reduced default number of neurons per hidden layer to reduce lag  
+    layer_width_spinbox = Spinbox(root, from_=1, to=50, increment=1, bg="#f0f0f0", fg="black", highlightbackground="gray", highlightthickness=1)
+    layer_width_spinbox.delete(0, "end")
+    layer_width_spinbox.insert(0, "4")
     layer_width_spinbox.grid(row=4, column=1, padx=10, pady=5)
 
     ctk.CTkButton(root, text="Start Training", command=start_training).grid(row=5, column=0, columnspan=2, pady=10)
