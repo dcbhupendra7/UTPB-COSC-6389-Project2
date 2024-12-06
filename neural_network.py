@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
+from sklearn.metrics import r2_score
 import random
 
 # Activation functions
@@ -16,7 +17,7 @@ def tanh(x):
 
 # Derivatives of activation functions
 def sigmoid_derivative(x):
-    return x * (1 - x)
+    return sigmoid(x) * (1 - sigmoid(x))
 
 def relu_derivative(x):
     return np.where(x > 0, 1.0, 0.0)
@@ -26,7 +27,7 @@ def tanh_derivative(x):
 
 # Xavier initialization function
 def xavier_init(num_inputs, hidden_layer_width):
-    return random.uniform(-1.0, 1.0) * np.sqrt(2 / (num_inputs + hidden_layer_width))
+    return np.random.uniform(-1.0, 1.0) * np.sqrt(2 / (num_inputs + hidden_layer_width))
 
 # Parameters for the network
 num_inputs = 10
@@ -56,7 +57,8 @@ class Neuron:
             return relu(total)
         elif self.activation == 'tanh':
             return tanh(total)
-        else:
+        elif self.activation == 'linear':
+            return total
             raise ValueError("Unknown activation function")
 
     def activation_derivative(self, value):
@@ -66,7 +68,8 @@ class Neuron:
             return relu_derivative(value)
         elif self.activation == 'tanh':
             return tanh_derivative(value)
-        else:
+        elif self.activation == 'linear':
+            return 1
             raise ValueError("Unknown activation function")
 
     def forward_prop(self, inputs):
@@ -80,13 +83,17 @@ class Neuron:
         # Ensure delta is initialized properly
         if isinstance(self.error, (int, float, np.float64)):
             if self.error != 0.0:
-                gradient = self.activation_derivative(self.result)
+                pre_activation = sum(in_axon.weight * in_axon.input.result for in_axon in self.inputs) + self.bias
+                gradient = self.activation_derivative(pre_activation)
                 delta = self.error * gradient
 
                 for in_axon in self.inputs:
                     in_axon.input.error += delta * in_axon.weight
                     in_axon.weight -= delta * in_axon.input.result * self.network.learning_rate
                 self.bias -= delta * self.network.learning_rate
+
+        # Reset error after backpropagation
+        self.error = 0.0
 
     def connect_input(self, in_neuron):
         in_axon = Axon(in_neuron, self, weight=xavier_init(num_inputs, hidden_layer_width))
@@ -110,7 +117,7 @@ class Network:
         self.num_inputs = num_inputs
         self.inputs = [Neuron(0, 0, input_idx=i, network=self) for i in range(self.num_inputs)]
         self.hidden_layers = [[Neuron(0, 0, activation=activation, network=self) for _ in range(self.hidden_layer_width)] for _ in range(self.num_hidden_layers)]
-        self.outputs = [Neuron(0, 0, activation='sigmoid', network=self) for _ in range(num_outputs)]
+        self.outputs = [Neuron(0, 0, activation='linear', network=self) for _ in range(num_outputs)]
         self.connect_layers()
 
     def connect_layers(self):
@@ -180,6 +187,11 @@ def load_and_preprocess_data(file_path):
                           'Weekday_Sleep_Start', 'Weekend_Sleep_Start', 'Weekday_Sleep_End', 'Weekend_Sleep_End']
     df[numerical_features] = scaler.fit_transform(df[numerical_features])
 
+    
+    # Scale target values
+    target_scaler = MinMaxScaler()
+    df['Sleep_Quality'] = target_scaler.fit_transform(df[['Sleep_Quality']])
+
     # Separate inputs and outputs
     X = df.drop(columns=['Sleep_Quality']).values
     y = df['Sleep_Quality'].values
@@ -190,7 +202,8 @@ def load_and_preprocess_data(file_path):
     return X_train, X_test, y_train, y_test
 
 # Calculate accuracy
-def calculate_accuracy(predictions, targets):
-    predictions = np.round(predictions)  # Assuming it's a regression output that should be rounded
-    correct = np.sum(predictions == targets)
-    return (correct / len(targets)) * 100
+def calculate_mae(predictions, targets):
+    return np.mean(np.abs(predictions - targets))
+
+def calculate_r2(predictions, targets):
+    return r2_score(targets, predictions)
