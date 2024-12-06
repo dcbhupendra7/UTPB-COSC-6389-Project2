@@ -3,10 +3,11 @@ import customtkinter as ctk
 from tkinter import Spinbox, messagebox
 import threading
 import pandas as pd
-from neural_network import Network, load_and_preprocess_data
+import numpy as np
+from neural_network import Network, load_and_preprocess_data, calculate_r2, calculate_mae
 
 def start_training():
-    global accuracy_label, learning_rate_spinbox, input_neurons_spinbox, hidden_layers_spinbox, layer_width_spinbox, activation_var, iteration_label, canvas, dataset_description_label, training_status_label
+    global accuracy_label, learning_rate_spinbox, input_neurons_spinbox, hidden_layers_spinbox, layer_width_spinbox, activation_var, iteration_label, canvas, dataset_description_label, training_status_label, network_accuracy_label
 
     activation = activation_var.get()
     if activation not in ['sigmoid', 'relu', 'tanh']:
@@ -54,27 +55,44 @@ def start_training():
                                       f" • Features: {X_train.shape[1]} (e.g., sleep duration, study hours)\n"
                                       f" • Training Samples: {len(X_train)}\n"
                                       f" • Test Samples: {len(X_test)}\n"
-                                      f" • Purpose: Understanding the relationship between sleep duration and academic performance (proxied by study hours)",
+                                      f" • Purpose: Understanding the relationship between sleep duration and academic performance (proxied by study hours)\n"
+                                      f" • R² Score: Measures how well the predictions approximate the actual values. A value closer to 1 indicates a better fit.\n"
+                                      f" • Mean Absolute Error (MAE): Average error magnitude in predictions. Lower values are better.",
                                    fg="black")
 
     if num_inputs > X_train.shape[1]:
         messagebox.showerror("Error", f"Number of input neurons cannot exceed {X_train.shape[1]}.")
         return
 
+    # Re-initialize the network on each training to ensure different starting weights
     network = Network(num_inputs=num_inputs, num_hidden_layers=num_hidden_layers,
                       hidden_layer_width=hidden_layer_width, learning_rate=learning_rate)
+        # Reinitialize weights by creating a new instance of the network for each training cycle
 
     # Update status to indicate training has started
     training_status_label.config(text="Training in progress...", fg="black")
 
     def run_training():
+        # Shuffle the dataset on every training cycle
+        nonlocal X_train, y_train
+        shuffled_indices = np.random.permutation(len(X_train))
+        X_train, y_train = X_train[shuffled_indices], y_train[shuffled_indices]
         for epoch in range(100):
             network.train(X_train, y_train, epochs=1)
             predictions = network.predict(X_test)
+            
+            # Calculate Mean Squared Error
             mse = ((predictions - y_test) ** 2).mean()
 
+            # Calculate R² score for evaluation
+            r2 = calculate_r2(predictions, y_test)
+
+            # Calculate Mean Absolute Error
+            mae = calculate_mae(predictions, y_test)
+
             # Update UI elements
-            accuracy_label.config(text=f"Final Mean Squared Error: {mse:.4f}", fg="black")
+            accuracy_label.config(text=f"Final Mean Squared Error: {mse:.4f}\nR² Score: {r2:.4f}", fg="black")
+            network_accuracy_label.config(text=f"Mean Absolute Error (MAE): {mae:.4f}", fg="black")
             iteration_label.config(text=f"Iteration: {epoch + 1} / 100", fg="black")
             training_status_label.config(text="Training Complete!" if epoch == 99 else f"Training... {epoch + 1}/100", fg="black")
             
@@ -85,7 +103,7 @@ def start_training():
     training_thread.start()
 
 def train():
-    global accuracy_label, learning_rate_spinbox, input_neurons_spinbox, hidden_layers_spinbox, layer_width_spinbox, activation_var, iteration_label, canvas, dataset_description_label, training_status_label
+    global accuracy_label, learning_rate_spinbox, input_neurons_spinbox, hidden_layers_spinbox, layer_width_spinbox, activation_var, iteration_label, canvas, dataset_description_label, training_status_label, network_accuracy_label
 
     root = tk.Tk()
     root.title("Neural Network Trainer")
@@ -201,9 +219,13 @@ def train():
                                    font=("Arial", 14), bg="#FFF4E6", fg="black")
     training_status_label.pack()
 
-    accuracy_label = tk.Label(results_frame, text="Final Mean Squared Error: 0.0000",
+    accuracy_label = tk.Label(results_frame, text="Final Mean Squared Error: 0.0000\nR² Score: 0.0000",
                             font=("Arial", 18, "bold"), bg="#FFF4E6", fg="black")
     accuracy_label.pack(pady=5)
+
+    network_accuracy_label = tk.Label(results_frame, text="Mean Absolute Error (MAE): 0.0000",
+                                      font=("Arial", 18, "bold"), bg="#FFF4E6", fg="black")
+    network_accuracy_label.pack(pady=5)
 
     iteration_label = tk.Label(results_frame, text="Iteration: 0 / 100",
                              font=("Arial", 14), bg="#FFF4E6", fg="black")
@@ -234,8 +256,6 @@ def draw_network(network):
         canvas.create_oval(x - neuron_radius, y - neuron_radius,
                          x + neuron_radius, y + neuron_radius,
                          fill="white", outline="black", width=2)
-        canvas.create_text(x, y, text=f"{value:.2f}",
-                         font=("Arial", 12, "bold"), fill="black")
 
     # Draw input layer
     input_neurons = {}
